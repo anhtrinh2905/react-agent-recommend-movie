@@ -19,6 +19,7 @@ if str(PROJECT_ROOT) not in sys.path:
 load_dotenv(PROJECT_ROOT / ".env")
 
 from src.agent.agent import ReActAgent
+from src.agent.agent_v2 import ReActAgentV2
 from src.agent.chatbot import ChatbotBaseline
 from src.core.factory import get_llm_provider
 from src.tools.registry import TOOL_SPECS
@@ -71,7 +72,9 @@ def render_trace(trace):
 
 def run_query(mode: str, user_input: str, provider: str, model: str, max_steps: int):
     llm = get_llm_provider(provider=provider, model=model)
-    if mode == "ReAct Agent":
+    if mode == "ReAct Agent v2":
+        return ReActAgentV2(llm=llm, tools=TOOL_SPECS, max_steps=max_steps).run(user_input)
+    if mode == "ReAct Agent v1":
         return ReActAgent(llm=llm, tools=TOOL_SPECS, max_steps=max_steps).run(user_input)
     return ChatbotBaseline(llm=llm).run(user_input)
 
@@ -81,7 +84,7 @@ init_session()
 # ── Sidebar ────────────────────────────────────────────────────────────────────
 with st.sidebar:
     st.header("⚙️ Cấu hình")
-    mode = st.radio("Chế độ", ["ReAct Agent", "Chatbot Baseline"], index=0)
+    mode = st.radio("Chế độ", ["ReAct Agent v2", "ReAct Agent v1", "Chatbot Baseline"], index=0)
 
     st.divider()
     st.subheader("🤖 Chọn Model")
@@ -193,7 +196,7 @@ else:
 
     with col_trace:
         st.subheader("ReAct Trace")
-        if mode == "ReAct Agent":
+        if mode in ("ReAct Agent v1", "ReAct Agent v2"):
             render_trace(st.session_state.last_trace)
         else:
             st.info("Chuyển sang **ReAct Agent** để xem trace.")
