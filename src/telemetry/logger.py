@@ -23,8 +23,9 @@ class IndustryLogger:
         # Console Handler
         console_handler = logging.StreamHandler()
         
-        self.logger.addHandler(file_handler)
-        self.logger.addHandler(console_handler)
+        if not self.logger.handlers:
+            self.logger.addHandler(file_handler)
+            self.logger.addHandler(console_handler)
 
     def log_event(self, event_type: str, data: Dict[str, Any]):
         """Logs an event with a timestamp and type."""

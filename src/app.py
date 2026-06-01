@@ -4,7 +4,6 @@ Streamlit demo: Chatbot vs ReAct Movie Recommendation Agent.
 Run from project root:
     streamlit run src/app.py
 """
-
 import json
 import os
 import sys
@@ -21,14 +20,16 @@ load_dotenv(PROJECT_ROOT / ".env")
 
 from src.agent.agent import ReActAgent
 from src.agent.chatbot import ChatbotBaseline
-from src.core.factory import OPENAI_MODELS, get_llm_provider
+from src.core.factory import get_llm_provider
 from src.tools.registry import TOOL_SPECS
-
-st.set_page_config(
-    page_title="Movie ReAct Agent Demo",
-    page_icon="🎬",
-    layout="wide",
+from src.ui.comparison import (
+    build_model_options,
+    render_comparison_result,
+    render_metrics_table,
+    run_parallel_comparison,
 )
+
+st.set_page_config(page_title="Movie ReAct Agent Demo", page_icon="🎬", layout="wide")
 
 EXAMPLE_PROMPTS = [
     "Tôi vừa xem Inception, gợi ý phim tương tự có trên Netflix.",
@@ -40,19 +41,19 @@ EXAMPLE_PROMPTS = [
 
 
 def init_session():
-    if "messages" not in st.session_state:
-        st.session_state.messages = []
-    if "last_trace" not in st.session_state:
-        st.session_state.last_trace = None
-    if "last_metrics" not in st.session_state:
-        st.session_state.last_metrics = None
+    defaults = {
+        "messages": [], "last_trace": None, "last_metrics": None,
+        "cmp_results": None, "cmp_query": "",
+    }
+    for k, v in defaults.items():
+        if k not in st.session_state:
+            st.session_state[k] = v
 
 
 def render_trace(trace):
     if not trace:
-        st.info("Chưa có trace ReAct. Hãy gửi câu hỏi ở chế độ ReAct Agent.")
+        st.info("Chưa có trace ReAct.")
         return
-
     for step in trace:
         with st.expander(f"Bước {step['step']}", expanded=False):
             if step.get("thought"):
@@ -61,127 +62,146 @@ def render_trace(trace):
                 st.markdown(f"**Action:** `{step['action']}`")
             if step.get("observation"):
                 try:
-                    obs = json.loads(step["observation"])
-                    st.json(obs)
+                    st.json(json.loads(step["observation"]))
                 except json.JSONDecodeError:
                     st.code(step["observation"])
-            if step.get("raw") and not step.get("action"):
+            elif step.get("raw") and not step.get("action"):
                 st.text(step["raw"])
 
 
-def run_query(mode: str, user_input: str, model: str, max_steps: int):
-    llm = get_llm_provider(model=model)
-
+def run_query(mode: str, user_input: str, provider: str, model: str, max_steps: int):
+    llm = get_llm_provider(provider=provider, model=model)
     if mode == "ReAct Agent":
-        agent = ReActAgent(llm=llm, tools=TOOL_SPECS, max_steps=max_steps)
-        return agent.run(user_input)
-
-    chatbot = ChatbotBaseline(llm=llm)
-    return chatbot.run(user_input)
+        return ReActAgent(llm=llm, tools=TOOL_SPECS, max_steps=max_steps).run(user_input)
+    return ChatbotBaseline(llm=llm).run(user_input)
 
 
 init_session()
 
-st.title("🎬 Movie Recommendation Demo")
-st.caption(
-    "So sánh Chatbot baseline vs ReAct Agent (OpenAI). "
-    "Đổi model gpt-4o / gpt-4o-mini ở sidebar để so sánh chất lượng & tốc độ."
-)
-
+# ── Sidebar ────────────────────────────────────────────────────────────────────
 with st.sidebar:
-    st.header("Cấu hình")
+    st.header("⚙️ Cấu hình")
     mode = st.radio("Chế độ", ["ReAct Agent", "Chatbot Baseline"], index=0)
-    model_options = list(OPENAI_MODELS)
-    default_model = os.getenv("DEFAULT_MODEL", "gpt-4o")
-    if default_model not in model_options:
-        default_model = "gpt-4o"
-    model = st.selectbox(
-        "OpenAI Model",
-        model_options,
-        index=model_options.index(default_model),
+
+    st.divider()
+    st.subheader("🤖 Chọn Model")
+    model_options = build_model_options()
+    selected_models = st.multiselect(
+        "Provider / Model (1 = chat, 2+ = so sánh song song)",
+        options=model_options,
+        default=model_options[:1] if model_options else [],
+        max_selections=4,
     )
+
+    max_steps = st.slider("Max ReAct steps", 2, 8, 5)
+
     if not os.getenv("OPENAI_API_KEY"):
         st.warning("Thiếu `OPENAI_API_KEY` trong `.env`.")
     if not os.getenv("TMDB_API_KEY"):
-        st.warning("Thiếu `TMDB_API_KEY` trong `.env` — tools phim sẽ không hoạt động.")
-    max_steps = st.slider("Max ReAct steps", 2, 8, 5)
+        st.warning("Thiếu `TMDB_API_KEY` — tools TMDB sẽ không hoạt động.")
 
     st.divider()
-    st.subheader("Tools (7)")
+    st.subheader("🔧 Tools (7)")
     for tool in TOOL_SPECS:
-        st.markdown(f"**`{tool['name']}`** — {tool['description'][:80]}...")
+        st.markdown(f"**`{tool['name']}`** — {tool['description'][:70]}...")
 
     st.divider()
-    st.subheader("Gợi ý câu hỏi")
+    st.subheader("💡 Gợi ý câu hỏi")
     for prompt in EXAMPLE_PROMPTS:
         if st.button(prompt, key=f"ex_{abs(hash(prompt))}"):
             st.session_state.pending_prompt = prompt
 
-col_chat, col_trace = st.columns([1.2, 1])
+# ── Main ───────────────────────────────────────────────────────────────────────
+st.title("🎬 Movie Recommendation Demo")
+st.caption("Chatbot baseline vs ReAct Agent · 7 TMDB tools · Chọn 2+ models để so sánh song song.")
 
-with col_chat:
-    for msg in st.session_state.messages:
-        with st.chat_message(msg["role"]):
-            st.markdown(msg["content"])
-            if msg.get("metrics"):
-                st.caption(
-                    f"⏱ {msg['metrics'].get('latency_ms', 0)} ms · "
-                    f"model: {msg['metrics'].get('model', '—')} · "
-                    f"steps: {msg['metrics'].get('steps', '—')} · "
-                    f"tokens: {msg['metrics'].get('usage', {}).get('total_tokens', '—')}"
-                )
+if not selected_models:
+    st.info("Chọn ít nhất 1 model ở sidebar để bắt đầu.")
+    st.stop()
 
+# ── Comparison mode (2+ models) ────────────────────────────────────────────────
+if len(selected_models) >= 2:
+    st.subheader(f"📊 So sánh {len(selected_models)} models song song")
     pending = st.session_state.pop("pending_prompt", None)
-    user_input = st.chat_input("Hỏi về phim...") or pending
+    cmp_query = st.text_input(
+        "Câu hỏi để so sánh:",
+        value=pending or st.session_state.cmp_query,
+        key="cmp_input",
+    )
+    if st.button("▶ Chạy tất cả", type="primary", disabled=not cmp_query):
+        st.session_state.cmp_query = cmp_query
+        with st.spinner(f"Đang chạy {len(selected_models)} models song song..."):
+            st.session_state.cmp_results = run_parallel_comparison(
+                selected_models, mode, cmp_query, max_steps, run_query
+            )
 
-    if user_input:
-        st.session_state.messages.append({"role": "user", "content": user_input})
-        with st.chat_message("user"):
-            st.markdown(user_input)
+    if st.session_state.cmp_results:
+        cols = st.columns(len(selected_models))
+        for col, key in zip(cols, selected_models):
+            render_comparison_result(col, key, st.session_state.cmp_results.get(key, {}), render_trace)
+        st.divider()
+        st.subheader("📈 Metrics so sánh")
+        render_metrics_table(selected_models, st.session_state.cmp_results)
 
-        with st.chat_message("assistant"):
-            with st.spinner("Đang suy luận..."):
-                try:
-                    result = run_query(mode, user_input, model, max_steps)
-                    answer = result["answer"]
-                    st.markdown(answer)
+# ── Single chat mode ───────────────────────────────────────────────────────────
+else:
+    provider, model = selected_models[0].split("/", 1)
+    col_chat, col_trace = st.columns([1.2, 1])
 
-                    metrics = {
-                        "model": model,
-                        "latency_ms": result.get("latency_ms"),
-                        "usage": result.get("usage"),
-                        "steps": result.get("steps"),
-                        "mode": result.get("mode"),
-                    }
+    with col_chat:
+        for msg in st.session_state.messages:
+            with st.chat_message(msg["role"]):
+                st.markdown(msg["content"])
+                if msg.get("metrics"):
+                    m = msg["metrics"]
                     st.caption(
-                        f"⏱ {metrics.get('latency_ms', 0)} ms · "
-                        f"model: {model} · "
-                        f"mode: {metrics.get('mode')} · "
-                        f"steps: {metrics.get('steps', '—')}"
+                        f"⏱ {m.get('latency_ms', 0)} ms · {m.get('model', '—')} · "
+                        f"steps: {m.get('steps', '—')} · "
+                        f"tokens: {(m.get('usage') or {}).get('total_tokens', '—')}"
                     )
 
-                    st.session_state.last_trace = result.get("trace")
-                    st.session_state.last_metrics = metrics
-                    st.session_state.messages.append(
-                        {"role": "assistant", "content": answer, "metrics": metrics}
-                    )
-                except Exception as exc:
-                    st.error(f"Lỗi: {exc}")
-                    st.info("Kiểm tra `OPENAI_API_KEY` trong `.env`.")
+        pending = st.session_state.pop("pending_prompt", None)
+        user_input = st.chat_input("Hỏi về phim...") or pending
 
-with col_trace:
-    st.subheader("ReAct Trace")
-    if mode == "ReAct Agent":
-        render_trace(st.session_state.last_trace)
-    else:
-        st.info("Chuyển sang **ReAct Agent** để xem Thought / Action / Observation.")
+        if user_input:
+            st.session_state.messages.append({"role": "user", "content": user_input})
+            with st.chat_message("user"):
+                st.markdown(user_input)
+            with st.chat_message("assistant"):
+                with st.spinner("Đang suy luận..."):
+                    try:
+                        result = run_query(mode, user_input, provider, model, max_steps)
+                        st.markdown(result["answer"])
+                        metrics = {
+                            "model": selected_models[0],
+                            "latency_ms": result.get("latency_ms"),
+                            "usage": result.get("usage"),
+                            "steps": result.get("steps"),
+                            "mode": result.get("mode"),
+                        }
+                        st.caption(
+                            f"⏱ {metrics['latency_ms']} ms · {selected_models[0]} · "
+                            f"mode: {metrics['mode']} · steps: {metrics.get('steps', '—')}"
+                        )
+                        st.session_state.last_trace = result.get("trace")
+                        st.session_state.last_metrics = metrics
+                        st.session_state.messages.append(
+                            {"role": "assistant", "content": result["answer"], "metrics": metrics}
+                        )
+                    except Exception as exc:
+                        st.error(f"Lỗi: {exc}")
 
-    if st.session_state.last_metrics:
-        st.subheader("Metrics")
-        st.json(st.session_state.last_metrics)
-
-    if st.button("Xóa lịch sử chat"):
-        st.session_state.messages = []
-        st.session_state.last_trace = None
-        st.session_state.last_metrics = None
-        st.rerun()
+    with col_trace:
+        st.subheader("ReAct Trace")
+        if mode == "ReAct Agent":
+            render_trace(st.session_state.last_trace)
+        else:
+            st.info("Chuyển sang **ReAct Agent** để xem trace.")
+        if st.session_state.last_metrics:
+            st.subheader("Metrics")
+            st.json(st.session_state.last_metrics)
+        if st.button("Xóa lịch sử"):
+            st.session_state.messages = []
+            st.session_state.last_trace = None
+            st.session_state.last_metrics = None
+            st.rerun()
