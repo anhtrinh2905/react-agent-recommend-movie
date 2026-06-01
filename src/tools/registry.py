@@ -1,4 +1,5 @@
 import ast
+import json
 import re
 from typing import Any, Callable, Dict, List, Tuple
 
@@ -86,11 +87,11 @@ def execute_tool(tool_name: str, args: List[Any]) -> str:
     fn = TOOL_MAP.get(tool_name)
     if not fn:
         available = ", ".join(TOOL_MAP.keys())
-        return f'{{"error": "Tool {tool_name} not found. Available: {available}"}}'
+        return json.dumps({"error": f"Tool {tool_name} not found. Available: {available}"})
 
     try:
         return fn(*args)
     except TypeError as exc:
-        return f'{{"error": "Invalid arguments for {tool_name}: {exc}"}}'
+        return json.dumps({"error": f"Invalid arguments for {tool_name}: {exc}"})
     except Exception as exc:
-        return f'{{"error": "Tool execution failed: {exc}"}}'
+        return json.dumps({"error": f"Tool execution failed: {exc}"})

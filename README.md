@@ -7,7 +7,8 @@ Welcome to Phase 3 of the Agentic AI course! This lab focuses on moving from a s
 ### 1. Setup Environment
 Copy the `.env.example` to `.env` and fill in your API keys:
 ```bash
-cp .env.example .env
+cp .env.example .env   # Linux/Mac
+copy .env.example .env  # Windows
 ```
 
 ### 2. Install Dependencies
@@ -15,8 +16,70 @@ cp .env.example .env
 pip install -r requirements.txt
 ```
 
-### 3. Directory Structure
+### 3. Run the App
+```bash
+streamlit run src/app.py
+```
+
+### 4. Directory Structure
 - `src/tools/`: Extension point for your custom tools.
+
+---
+
+## 🤖 LLM Provider Setup
+
+Dự án hỗ trợ 3 provider cloud + 1 local. Chọn 1 hoặc nhiều để test.
+
+### Option A — OpenAI (mặc định)
+1. Lấy API key tại https://platform.openai.com/api-keys
+2. Thêm vào `.env`:
+```env
+OPENAI_API_KEY=sk-...
+DEFAULT_MODEL=gpt-4o-mini   # rẻ hơn gpt-4o để test
+```
+
+### Option B — DeepSeek (rẻ, nhanh)
+1. Lấy API key tại https://platform.deepseek.com/api_keys
+2. Thêm vào `.env`:
+```env
+DEEPSEEK_API_KEY=sk-...
+```
+3. Chọn `deepseek/deepseek-chat` trong dropdown app.
+
+### Option C — Ollama (chạy local, miễn phí, không cần API key)
+1. Cài Ollama: https://ollama.com/download
+2. Khởi động server và tải model:
+```bash
+ollama serve                    # khởi động server (chạy nền)
+ollama pull llama3.2:3b         # ~2GB, chạy được trên CPU thường
+# hoặc model nhỏ hơn:
+ollama pull qwen2.5:3b          # ~2GB, tiếng Việt tốt hơn
+# hoặc model mạnh hơn (cần RAM 8GB+):
+ollama pull qwen2.5:7b          # ~4.7GB
+```
+3. Không cần chỉnh `.env` — app tự detect Ollama đang chạy và hiện trong dropdown.
+
+> **Tip:** Dùng `ollama list` để xem các model đã tải.
+
+### Option D — Local GGUF (llama-cpp, không cần internet sau khi tải)
+1. Cài thêm dependencies:
+```bash
+pip install -r requirements-local.txt
+```
+2. Tải model GGUF (~2.2GB):
+   - Link: https://huggingface.co/microsoft/Phi-3-mini-4k-instruct-gguf
+   - File cần tải: `phi-3-mini-4k-instruct-q4.gguf`
+3. Tạo thư mục và đặt file vào:
+```bash
+mkdir models
+# Đặt file .gguf vào thư mục models/
+```
+4. Thêm vào `.env`:
+```env
+LOCAL_MODEL_PATH=./models/Phi-3-mini-4k-instruct-q4.gguf
+```
+
+---
 
 ## 🏠 Running with Local Models (CPU)
 
