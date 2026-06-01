@@ -235,7 +235,7 @@ else:
         with st.chat_message("assistant"):
             with st.spinner("Đang suy luận..."):
                 try:
-                    result = run_query(mode, user_input, model, max_steps)
+                    result = run_query(mode, user_input, provider, model, max_steps)
                     answer = result["answer"]
                     st.markdown(answer)
 
