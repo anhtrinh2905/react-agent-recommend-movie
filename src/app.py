@@ -48,6 +48,10 @@ def init_session():
         st.session_state.last_trace = None
     if "last_metrics" not in st.session_state:
         st.session_state.last_metrics = None
+    if "cmp_results" not in st.session_state:
+        st.session_state.cmp_results = None
+    if "cmp_query" not in st.session_state:
+        st.session_state.cmp_query = ""
 
 
 def extract_movies_from_trace(trace):
@@ -235,7 +239,7 @@ else:
         with st.chat_message("assistant"):
             with st.spinner("Đang suy luận..."):
                 try:
-                    result = run_query(mode, user_input, model, max_steps)
+                    result = run_query(mode, user_input, provider, model, max_steps)
                     answer = result["answer"]
                     st.markdown(answer)
 
