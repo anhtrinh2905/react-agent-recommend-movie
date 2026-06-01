@@ -4,8 +4,9 @@ from typing import Optional
 from src.core.llm_provider import LLMProvider
 from src.core.openai_provider import OpenAIProvider
 
-OPENAI_MODELS = ("gpt-4o", "gpt-4o-mini")
+OPENAI_MODELS = ("gpt-4o-mini", "gpt-4o")
 DEEPSEEK_MODELS = ("deepseek-chat", "deepseek-reasoner")
+GEMINI_MODELS = ("gemini-2.5-flash-lite", "gemini-2.5-flash", "gemini-3.5-flash")
 
 
 def is_local_provider_available() -> bool:
@@ -34,10 +35,16 @@ def get_llm_provider(
             model_name=selected_model if selected_model.startswith("deepseek") else "deepseek-chat",
             api_key=os.getenv("DEEPSEEK_API_KEY"),
         )
+    if selected == "gemini":
+        from src.core.gemini_provider import GeminiProvider
+        return GeminiProvider(
+            model_name=selected_model if selected_model.startswith("gemini-") else os.getenv("GEMINI_MODEL", GEMINI_MODELS[0]),
+            api_key=os.getenv("GEMINI_API_KEY"),
+        )
     if selected == "ollama":
         from src.core.ollama_provider import OllamaProvider
         return OllamaProvider(
-            model_name=selected_model if not selected_model.startswith("gpt") and not selected_model.startswith("deepseek") else os.getenv("OLLAMA_MODEL", "llama3.2:3b"),
+            model_name=selected_model if not selected_model.startswith("gpt") and not selected_model.startswith("deepseek") and not selected_model.startswith("gemini") else os.getenv("OLLAMA_MODEL", "llama3.2:3b"),
             base_url=os.getenv("OLLAMA_BASE_URL", "http://localhost:11434"),
         )
     if selected == "local":

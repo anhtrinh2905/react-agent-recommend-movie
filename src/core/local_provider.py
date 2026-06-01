@@ -9,7 +9,7 @@ class LocalProvider(LLMProvider):
     LLM Provider for local models using llama-cpp-python.
     Optimized for CPU usage with GGUF models.
     """
-    def __init__(self, model_path: str, n_ctx: int = 4096, n_threads: Optional[int] = None):
+    def __init__(self, model_path: str, n_ctx: int = 4096, n_threads: Optional[int] = None, max_tokens: Optional[int] = None):
         """
         Initialize the local Llama model.
         Args:
@@ -18,6 +18,7 @@ class LocalProvider(LLMProvider):
             n_threads: Number of CPU threads to use. Defaults to all available.
         """
         super().__init__(model_name=os.path.basename(model_path))
+        self.max_tokens = max_tokens or int(os.getenv("LOCAL_MAX_TOKENS", "256"))
         
         if not os.path.exists(model_path):
             raise FileNotFoundError(f"Model file not found at {model_path}. Please download it first.")
@@ -42,7 +43,7 @@ class LocalProvider(LLMProvider):
 
         response = self.llm(
             full_prompt,
-            max_tokens=1024,
+            max_tokens=self.max_tokens,
             stop=["<|end|>", "Observation:"],
             echo=False
         )
@@ -73,7 +74,7 @@ class LocalProvider(LLMProvider):
 
         stream = self.llm(
             full_prompt,
-            max_tokens=1024,
+            max_tokens=self.max_tokens,
             stop=["<|end|>", "Observation:"],
             stream=True
         )

@@ -38,6 +38,7 @@ Action: tool_name(args)
 Final Answer: <recommendation in Vietnamese or English matching the user>
 5. Use at most one Action per step. Stop when you have enough data.
 6. Valid moods for filter_by_mood: happy, sad, relaxed, excited, romantic, scary.
+7. If a request is not clearly about movies, series, cinemas, streaming, or watch recommendations, do not call tools and do not invent a movie angle. Reply with a short Final Answer saying this demo only handles movie-related questions.
 """
 
     def _parse_llm_step(self, content: str) -> Dict[str, Optional[str]]:

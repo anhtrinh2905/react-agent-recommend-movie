@@ -14,6 +14,10 @@ class ChatbotBaseline:
         return (
             "You are a friendly movie recommendation assistant. "
             "Answer in Vietnamese when the user writes in Vietnamese. "
+            "If the user asks about something outside movies, series, cinemas, "
+            "streaming, or watch recommendations, politely say this demo only "
+            "handles movie-related questions. Do not force unrelated requests "
+            "into movie recommendations. "
             "You do NOT have access to external tools or a movie database — "
             "be honest when you are guessing from general knowledge."
         )
