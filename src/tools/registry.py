@@ -55,6 +55,18 @@ TOOL_SPECS: List[Dict[str, Any]] = [
         movie_tools.compare_movies,
         "compare_movies([27205, 157336, 1124])",
     ),
+    _spec(
+        "search_person",
+        "Search TMDB for a person (actor/director) by name. Args: name (str), limit (int, default 5). Returns person_id, name, profile.",
+        movie_tools.search_person,
+        'search_person("Tom Hanks", 5)',
+    ),
+    _spec(
+        "get_movies_by_person",
+        "Get list of movies by a person. Args: person_id (int, from search_person), role ('director'|'actor', default 'director'), limit (int). Use search_person first to find person_id.",
+        movie_tools.get_movies_by_person,
+        'get_movies_by_person(2001, "director", 5)',
+    ),
 ]
 
 TOOL_MAP: Dict[str, ToolFn] = {spec["name"]: spec["fn"] for spec in TOOL_SPECS}
