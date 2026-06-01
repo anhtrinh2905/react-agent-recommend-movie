@@ -247,6 +247,7 @@ else:
                     try:
                         result = run_query(mode, user_input, provider, model, max_steps)
                         answer = result["answer"]
+                        st.markdown(answer)
 
 
                         metrics = {
