@@ -231,6 +231,64 @@ class TMDbClient:
 
         return movies[:limit]
 
+    def search_person(self, name: str, limit: int = 5) -> List[Dict[str, Any]]:
+        """Search for a person (actor/director) on TMDB by name."""
+        data = self._get(
+            "/search/person",
+            {"query": name.strip(), "include_adult": "false", "page": 1},
+        )
+        results = data.get("results", [])[:limit]
+        return [
+            {
+                "id": person["id"],
+                "name": person.get("name", ""),
+                "known_for_department": person.get("known_for_department", ""),
+                "profile_path": f"{TMDB_IMAGE_BASE}/w500{person['profile_path']}"
+                if person.get("profile_path")
+                else None,
+                "popularity": person.get("popularity", 0),
+            }
+            for person in results
+        ]
+
+    def get_movies_by_person(
+        self, person_id: int, role: str = "director", limit: int = 5
+    ) -> List[Dict[str, Any]]:
+        """Get movies for a person by role (director or actor)."""
+        role_lower = role.strip().lower()
+        if role_lower not in {"director", "actor"}:
+            raise TMDbClientError(f"role must be 'director' or 'actor', got '{role}'")
+
+        data = self._get(f"/person/{int(person_id)}", {"append_to_response": "movie_credits"})
+
+        person_name = data.get("name", "Unknown")
+        movie_credits = data.get("movie_credits", {})
+
+        if role_lower == "director":
+            # Get crew entries where job is "Director"
+            crew = movie_credits.get("crew", [])
+            movie_ids = [
+                m["id"]
+                for m in crew
+                if m.get("job") == "Director" and m.get("id")
+            ]
+        else:  # actor
+            # Get cast entries
+            cast = movie_credits.get("cast", [])
+            movie_ids = [m["id"] for m in cast if m.get("id")]
+
+        # Fetch details for each movie
+        movies = []
+        for movie_id in movie_ids[:limit]:
+            try:
+                movie_detail = self.get_movie_details(movie_id)
+                movies.append(movie_detail)
+            except TMDbClientError:
+                # Skip movies that fail to load
+                continue
+
+        return movies
+
 
 _client: Optional[TMDbClient] = None
 

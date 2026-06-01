@@ -175,3 +175,44 @@ def compare_movies(movie_ids: List[int]) -> str:
 
     winner = max(rows, key=lambda row: row["rating"])["title"]
     return _json_ok({"source": "TMDB", "comparison": rows, "winner_by_rating": winner})
+
+
+@_handle_errors
+def search_person(name: str, limit: int = 5) -> str:
+    """Search for a person (actor/director) on TMDB by name. Returns person_id, name, and profile."""
+    if not name.strip():
+        return _json_error("name must not be empty")
+
+    limit = max(1, min(int(limit), 10))
+    client = get_client()
+    people = client.search_person(name.strip(), limit=limit)
+    return _json_ok(
+        {
+            "query": name,
+            "source": "TMDB",
+            "count": len(people),
+            "people": people,
+        }
+    )
+
+
+@_handle_errors
+def get_movies_by_person(person_id: int, role: str = "director", limit: int = 5) -> str:
+    """Get list of movies by a person (director or actor). Args: person_id (int), role ('director'|'actor'), limit (int)."""
+    role_lower = role.strip().lower()
+    if role_lower not in {"director", "actor"}:
+        return _json_error("role must be 'director' or 'actor'", received=role)
+
+    limit = max(1, min(int(limit), 10))
+    client = get_client()
+    movies = client.get_movies_by_person(int(person_id), role=role_lower, limit=limit)
+    return _json_ok(
+        {
+            "person_id": int(person_id),
+            "role": role_lower,
+            "source": "TMDB",
+            "count": len(movies),
+            "movies": movies,
+        }
+    )
+

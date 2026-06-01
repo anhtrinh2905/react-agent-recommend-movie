@@ -242,12 +242,21 @@ else:
             with st.chat_message("user"):
                 st.markdown(user_input)
 
+<<<<<<< HEAD
             with st.chat_message("assistant"):
                 with st.spinner("Đang suy luận..."):
                     try:
                         result = run_query(mode, user_input, provider, model, max_steps)
                         answer = result["answer"]
                         st.markdown(answer)
+=======
+        with st.chat_message("assistant"):
+            with st.spinner("Đang suy luận..."):
+                try:
+                    result = run_query(mode, user_input, provider, model, max_steps)
+                    answer = result["answer"]
+                    st.markdown(answer)
+>>>>>>> 47f5a39 (feat:add find movie by actor name)
 
                         metrics = {
                             "model": model,
