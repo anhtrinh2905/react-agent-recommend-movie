@@ -48,6 +48,55 @@ def init_session():
         st.session_state.last_metrics = None
 
 
+def extract_movies_from_trace(trace):
+    """Extract movie data with images from trace observations."""
+    movies = []
+    seen_ids = set()
+    if not trace:
+        return movies
+    for step in trace:
+        obs_raw = step.get("observation")
+        if not obs_raw:
+            continue
+        try:
+            obs = json.loads(obs_raw)
+        except (json.JSONDecodeError, TypeError):
+            continue
+        # Single movie detail
+        if obs.get("poster_url") and obs.get("id") not in seen_ids:
+            movies.append(obs)
+            seen_ids.add(obs["id"])
+        # List of movies (search, similar, trending, mood, compare)
+        for key in ("movies", "comparison"):
+            for m in obs.get(key, []):
+                if isinstance(m, dict) and m.get("poster_url") and m.get("id") not in seen_ids:
+                    movies.append(m)
+                    seen_ids.add(m["id"])
+    return movies
+
+
+def render_movie_cards(movies, max_cols=4):
+    """Render movie poster cards in a grid."""
+    if not movies:
+        return
+    st.markdown("---")
+    st.markdown("🎬 **Phim liên quan:**")
+    cols = st.columns(min(len(movies), max_cols))
+    for idx, movie in enumerate(movies[:max_cols * 2]):
+        col = cols[idx % max_cols]
+        with col:
+            poster = movie.get("poster_url")
+            if poster:
+                st.image(poster, use_container_width=True)
+            title = movie.get("title", "")
+            year = movie.get("year", "")
+            rating = movie.get("rating", "")
+            genres = ", ".join(movie.get("genres", [])) if movie.get("genres") else ""
+            st.markdown(f"**{title}** ({year})")
+            if rating:
+                st.caption(f"⭐ {rating}/10 · {genres}")
+
+
 def render_trace(trace):
     if not trace:
         st.info("Chưa có trace ReAct. Hãy gửi câu hỏi ở chế độ ReAct Agent.")
@@ -62,6 +111,18 @@ def render_trace(trace):
             if step.get("observation"):
                 try:
                     obs = json.loads(step["observation"])
+                    # Show banner image in trace if available
+                    for key in ("movies", "comparison"):
+                        for m in obs.get(key, []):
+                            if isinstance(m, dict) and m.get("backdrop_url"):
+                                st.image(m["backdrop_url"], caption=m.get("title", ""), use_container_width=True)
+                                break
+                        else:
+                            continue
+                        break
+                    else:
+                        if obs.get("backdrop_url"):
+                            st.image(obs["backdrop_url"], caption=obs.get("title", ""), use_container_width=True)
                     st.json(obs)
                 except json.JSONDecodeError:
                     st.code(step["observation"])
@@ -165,6 +226,11 @@ with col_chat:
                     st.session_state.messages.append(
                         {"role": "assistant", "content": answer, "metrics": metrics}
                     )
+
+                    # Display movie banners from trace
+                    trace_movies = extract_movies_from_trace(result.get("trace"))
+                    if trace_movies:
+                        render_movie_cards(trace_movies)
                 except Exception as exc:
                     st.error(f"Lỗi: {exc}")
                     st.info("Kiểm tra `OPENAI_API_KEY` trong `.env`.")

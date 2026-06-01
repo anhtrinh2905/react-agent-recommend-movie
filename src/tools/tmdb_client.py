@@ -4,6 +4,7 @@ from typing import Any, Dict, List, Optional
 import requests
 
 TMDB_BASE_URL = "https://api.themoviedb.org/3"
+TMDB_IMAGE_BASE = "https://image.tmdb.org/t/p"
 DEFAULT_LANGUAGE = os.getenv("TMDB_LANGUAGE", "vi-VN")
 DEFAULT_REGION = os.getenv("TMDB_REGION", "VN")
 
@@ -90,6 +91,8 @@ class TMDbClient:
             "year": self._year(movie.get("release_date", "")),
             "genres": genres,
             "rating": round(float(movie.get("vote_average") or 0), 1),
+            "poster_url": f"{TMDB_IMAGE_BASE}/w500{movie['poster_path']}" if movie.get("poster_path") else None,
+            "backdrop_url": f"{TMDB_IMAGE_BASE}/w1280{movie['backdrop_path']}" if movie.get("backdrop_path") else None,
         }
 
     def search_movies(self, query: str, limit: int = 5) -> List[Dict[str, Any]]:
@@ -131,6 +134,8 @@ class TMDbClient:
             "cast": cast,
             "plot": data.get("overview") or "",
             "original_language": data.get("original_language"),
+            "poster_url": f"{TMDB_IMAGE_BASE}/w500{data['poster_path']}" if data.get("poster_path") else None,
+            "backdrop_url": f"{TMDB_IMAGE_BASE}/w1280{data['backdrop_path']}" if data.get("backdrop_path") else None,
         }
 
     def discover_by_genres(
