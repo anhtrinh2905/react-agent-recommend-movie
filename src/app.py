@@ -21,6 +21,7 @@ load_dotenv(PROJECT_ROOT / ".env")
 from src.agent.agent import ReActAgent
 from src.agent.agent_v2 import ReActAgentV2
 from src.agent.chatbot import ChatbotBaseline
+from src.core.domain_guard import build_off_topic_result, is_clear_off_topic
 from src.core.factory import get_llm_provider
 from src.tools.registry import TOOL_SPECS
 from src.ui.comparison import (
@@ -136,6 +137,9 @@ def render_trace(trace):
 
 
 def run_query(mode: str, user_input: str, provider: str, model: str, max_steps: int):
+    if is_clear_off_topic(user_input):
+        return build_off_topic_result(user_input)
+
     llm = get_llm_provider(provider=provider, model=model)
     if mode == "ReAct Agent v2":
         return ReActAgentV2(llm=llm, tools=TOOL_SPECS, max_steps=max_steps).run(user_input)
