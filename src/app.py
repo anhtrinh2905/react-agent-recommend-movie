@@ -48,6 +48,10 @@ def init_session():
         st.session_state.last_trace = None
     if "last_metrics" not in st.session_state:
         st.session_state.last_metrics = None
+    if "cmp_query" not in st.session_state:
+        st.session_state.cmp_query = ""
+    if "cmp_results" not in st.session_state:
+        st.session_state.cmp_results = None
 
 
 def extract_movies_from_trace(trace):
@@ -171,8 +175,8 @@ with st.sidebar:
 
     st.divider()
     st.subheader("💡 Gợi ý câu hỏi")
-    for prompt in EXAMPLE_PROMPTS:
-        if st.button(prompt, key=f"ex_{abs(hash(prompt))}"):
+    for idx, prompt in enumerate(EXAMPLE_PROMPTS):
+        if st.button(prompt, key=f"ex_{idx}"):
             st.session_state.pending_prompt = prompt
 
 # ── Main ───────────────────────────────────────────────────────────────────────
@@ -187,16 +191,22 @@ if not selected_models:
 if len(selected_models) >= 2:
     st.subheader(f"📊 So sánh {len(selected_models)} models song song")
     pending = st.session_state.pop("pending_prompt", None)
+    if pending:
+        st.session_state.cmp_query = pending
+        st.session_state.cmp_input = pending
+
     cmp_query = st.text_input(
         "Câu hỏi để so sánh:",
-        value=pending or st.session_state.cmp_query,
+        value=st.session_state.cmp_query,
         key="cmp_input",
     )
-    if st.button("▶ Chạy tất cả", type="primary", disabled=not cmp_query):
-        st.session_state.cmp_query = cmp_query
+    st.session_state.cmp_query = cmp_query
+
+    run_all = st.button("▶ Chạy tất cả", type="primary", disabled=not cmp_query.strip())
+    if (run_all or pending) and cmp_query.strip():
         with st.spinner(f"Đang chạy {len(selected_models)} models song song..."):
             st.session_state.cmp_results = run_parallel_comparison(
-                selected_models, mode, cmp_query, max_steps, run_query
+                selected_models, mode, cmp_query.strip(), max_steps, run_query
             )
 
     if st.session_state.cmp_results:
@@ -227,45 +237,44 @@ else:
         pending = st.session_state.pop("pending_prompt", None)
         user_input = st.chat_input("Hỏi về phim...") or pending
 
-    if user_input:
-        st.session_state.messages.append({"role": "user", "content": user_input})
-        with st.chat_message("user"):
-            st.markdown(user_input)
+        if user_input:
+            st.session_state.messages.append({"role": "user", "content": user_input})
+            with st.chat_message("user"):
+                st.markdown(user_input)
 
-        with st.chat_message("assistant"):
-            with st.spinner("Đang suy luận..."):
-                try:
-                    result = run_query(mode, user_input, model, max_steps)
-                    answer = result["answer"]
-                    st.markdown(answer)
+            with st.chat_message("assistant"):
+                with st.spinner("Đang suy luận..."):
+                    try:
+                        result = run_query(mode, user_input, provider, model, max_steps)
+                        answer = result["answer"]
+                        st.markdown(answer)
 
-                    metrics = {
-                        "model": model,
-                        "latency_ms": result.get("latency_ms"),
-                        "usage": result.get("usage"),
-                        "steps": result.get("steps"),
-                        "mode": result.get("mode"),
-                    }
-                    st.caption(
-                        f"⏱ {metrics.get('latency_ms', 0)} ms · "
-                        f"model: {model} · "
-                        f"mode: {metrics.get('mode')} · "
-                        f"steps: {metrics.get('steps', '—')}"
-                    )
+                        metrics = {
+                            "model": model,
+                            "latency_ms": result.get("latency_ms"),
+                            "usage": result.get("usage"),
+                            "steps": result.get("steps"),
+                            "mode": result.get("mode"),
+                        }
+                        st.caption(
+                            f"⏱ {metrics.get('latency_ms', 0)} ms · "
+                            f"model: {model} · "
+                            f"mode: {metrics.get('mode')} · "
+                            f"steps: {metrics.get('steps', '—')}"
+                        )
 
-                    st.session_state.last_trace = result.get("trace")
-                    st.session_state.last_metrics = metrics
-                    st.session_state.messages.append(
-                        {"role": "assistant", "content": answer, "metrics": metrics}
-                    )
+                        st.session_state.last_trace = result.get("trace")
+                        st.session_state.last_metrics = metrics
+                        st.session_state.messages.append(
+                            {"role": "assistant", "content": answer, "metrics": metrics}
+                        )
 
-                    # Display movie banners from trace
-                    trace_movies = extract_movies_from_trace(result.get("trace"))
-                    if trace_movies:
-                        render_movie_cards(trace_movies)
-                except Exception as exc:
-                    st.error(f"Lỗi: {exc}")
-                    st.info("Kiểm tra `OPENAI_API_KEY` trong `.env`.")
+                        trace_movies = extract_movies_from_trace(result.get("trace"))
+                        if trace_movies:
+                            render_movie_cards(trace_movies)
+                    except Exception as exc:
+                        st.error(f"Lỗi: {exc}")
+                        st.info("Kiểm tra `OPENAI_API_KEY` trong `.env`.")
 
     with col_trace:
         st.subheader("ReAct Trace")
