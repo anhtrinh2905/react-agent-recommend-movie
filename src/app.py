@@ -21,7 +21,7 @@ load_dotenv(PROJECT_ROOT / ".env")
 
 from src.agent.agent import ReActAgent
 from src.agent.chatbot import ChatbotBaseline
-from src.core.factory import get_llm_provider, is_local_provider_available
+from src.core.factory import OPENAI_MODELS, get_llm_provider
 from src.tools.registry import TOOL_SPECS
 
 st.set_page_config(
@@ -69,8 +69,8 @@ def render_trace(trace):
                 st.text(step["raw"])
 
 
-def run_query(mode: str, user_input: str, provider: str, model: str, max_steps: int):
-    llm = get_llm_provider(provider=provider, model=model)
+def run_query(mode: str, user_input: str, model: str, max_steps: int):
+    llm = get_llm_provider(model=model)
 
     if mode == "ReAct Agent":
         agent = ReActAgent(llm=llm, tools=TOOL_SPECS, max_steps=max_steps)
@@ -83,34 +83,27 @@ def run_query(mode: str, user_input: str, provider: str, model: str, max_steps: 
 init_session()
 
 st.title("🎬 Movie Recommendation Demo")
-st.caption("So sánh Chatbot baseline vs ReAct Agent với 7 movie tools (TMDB API).")
+st.caption(
+    "So sánh Chatbot baseline vs ReAct Agent (OpenAI). "
+    "Đổi model gpt-4o / gpt-4o-mini ở sidebar để so sánh chất lượng & tốc độ."
+)
 
 with st.sidebar:
     st.header("Cấu hình")
     mode = st.radio("Chế độ", ["ReAct Agent", "Chatbot Baseline"], index=0)
-    provider_options = ["openai", "google"]
-    if is_local_provider_available():
-        provider_options.append("local")
-
-    default_provider = os.getenv("DEFAULT_PROVIDER", "openai").lower()
-    if default_provider not in provider_options:
-        default_provider = "openai"
-
-    provider = st.selectbox(
-        "LLM Provider",
-        provider_options,
-        index=provider_options.index(default_provider),
+    model_options = list(OPENAI_MODELS)
+    default_model = os.getenv("DEFAULT_MODEL", "gpt-4o")
+    if default_model not in model_options:
+        default_model = "gpt-4o"
+    model = st.selectbox(
+        "OpenAI Model",
+        model_options,
+        index=model_options.index(default_model),
     )
-    if not is_local_provider_available():
-        st.caption("Local model: cài thêm từ `requirements-local.txt` nếu cần.")
+    if not os.getenv("OPENAI_API_KEY"):
+        st.warning("Thiếu `OPENAI_API_KEY` trong `.env`.")
     if not os.getenv("TMDB_API_KEY"):
         st.warning("Thiếu `TMDB_API_KEY` trong `.env` — tools phim sẽ không hoạt động.")
-    default_model = os.getenv("DEFAULT_MODEL", "gpt-4o")
-    if provider == "google":
-        default_model = "gemini-1.5-flash"
-    elif provider == "local":
-        default_model = "Phi-3-mini (local)"
-    model = st.text_input("Model", value=default_model)
     max_steps = st.slider("Max ReAct steps", 2, 8, 5)
 
     st.divider()
@@ -133,6 +126,7 @@ with col_chat:
             if msg.get("metrics"):
                 st.caption(
                     f"⏱ {msg['metrics'].get('latency_ms', 0)} ms · "
+                    f"model: {msg['metrics'].get('model', '—')} · "
                     f"steps: {msg['metrics'].get('steps', '—')} · "
                     f"tokens: {msg['metrics'].get('usage', {}).get('total_tokens', '—')}"
                 )
@@ -148,11 +142,12 @@ with col_chat:
         with st.chat_message("assistant"):
             with st.spinner("Đang suy luận..."):
                 try:
-                    result = run_query(mode, user_input, provider, model, max_steps)
+                    result = run_query(mode, user_input, model, max_steps)
                     answer = result["answer"]
                     st.markdown(answer)
 
                     metrics = {
+                        "model": model,
                         "latency_ms": result.get("latency_ms"),
                         "usage": result.get("usage"),
                         "steps": result.get("steps"),
@@ -160,6 +155,7 @@ with col_chat:
                     }
                     st.caption(
                         f"⏱ {metrics.get('latency_ms', 0)} ms · "
+                        f"model: {model} · "
                         f"mode: {metrics.get('mode')} · "
                         f"steps: {metrics.get('steps', '—')}"
                     )
@@ -171,7 +167,7 @@ with col_chat:
                     )
                 except Exception as exc:
                     st.error(f"Lỗi: {exc}")
-                    st.info("Kiểm tra API key trong `.env` hoặc chọn provider `local` nếu đã tải model GGUF.")
+                    st.info("Kiểm tra `OPENAI_API_KEY` trong `.env`.")
 
 with col_trace:
     st.subheader("ReAct Trace")
