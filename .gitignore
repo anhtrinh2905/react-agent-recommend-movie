@@ -1,4 +1,5 @@
 .env
+.env.local
 logs/
 __pycache__/
 .pytest_cache/
@@ -6,3 +7,9 @@ __pycache__/
 .DS_Store
 models/
 .playwright-mcp/
+.venv/
+backend/.venv/
+backend/logs/
+node_modules/
+frontend-user/.next/
+frontend-admin/.next/
